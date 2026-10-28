@@ -113,9 +113,23 @@ export async function optionalAuth(req, res, next) {
   }
 
   try {
-    const userRes = await db.query('SELECT id, name, email FROM users WHERE id = $1', [payload.id]);
+    const userRes = await db.query(
+      'SELECT id, name, email, college_domain, college_name, email_verified FROM users WHERE id = $1',
+      [payload.id]
+    );
     if (userRes.rows.length > 0) {
-      req.user = userRes.rows[0];
+      const row = userRes.rows[0];
+      req.user = {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        college_domain: row.college_domain,
+        collegeDomain: row.college_domain,
+        college_name: row.college_name,
+        collegeName: row.college_name,
+        email_verified: Boolean(row.email_verified),
+        emailVerified: Boolean(row.email_verified),
+      };
     }
     next();
   } catch {

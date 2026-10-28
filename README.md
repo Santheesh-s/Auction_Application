@@ -85,9 +85,65 @@ approved ──pickup failed────────────▶ failed_picku
 
 ---
 
+## 🏛️ Multi-College Model & Email Domain Isolation
+
+Campus Auction features **strict multi-institutional isolation** driven directly by student email addresses:
+
+1. **Automatic College Identity from Registrable Domain:**
+   - The user's college domain is derived using `tldts.getDomain()` from their email address:
+     - `santheeshs.23cse@kongu.edu` ➔ `kongu.edu`
+     - `x@students.kongu.edu` ➔ `kongu.edu`
+     - `x@cse.iitm.ac.in` ➔ `iitm.ac.in`
+     - `x@mit.edu` ➔ `mit.edu`
+   - Personal and free email providers (`gmail.com`, `yahoo.com`, `outlook.com`, `hotmail.com`, etc.) are strictly blocked at registration.
+   - Optional setting: `REQUIRE_EDU_DOMAIN=true` enforces `.edu` or `.ac.<country>` extensions.
+
+2. **Strict Peer-to-Peer College Isolation:**
+   - **Browse & Search:** Feed and search queries automatically filter `WHERE college_domain = $userCollege`.
+   - **Privacy Shield:** Attempting to fetch a listing from another college (`GET /api/listings/:id`) returns **404 Not Found** (not 403), preventing data leakage across institutions.
+   - **Bidding & Q&A:** Cross-college bid placement, auto-bidding, questions, and answers are rejected with `FORBIDDEN_COLLEGE` (403).
+   - **Real-Time Sockets:** Connections join `college:{college_domain}` and `user:{id}` rooms. Cross-college listing room joins are rejected. New listings are broadcast solely to student peers in that college.
+   - **Wanted Items Alerts:** Keyword matcher triggers notifications only for listings created in the student's own college.
+   - **AI Assistant:** Search, detail queries, and bid proposals are strictly bound to the authenticated user's `college_domain`.
+
+3. **Email Verification Workflow:**
+   - On registration, a 24-hour verification token hash is stored in `email_verifications`.
+   - Verification links (`http://localhost:5173/verify?token=...`) are dispatched via Nodemailer. If SMTP is not configured in development, verification links are printed to the server console.
+   - Unverified users cannot place bids (`EMAIL_NOT_VERIFIED` 403), create listings, ask questions, or activate automated bids until verified.
+   - Resend verification is available via `/api/auth/resend-verification`.
+
+4. **Environment Variables for Email & College Configuration:**
+   ```env
+   PORT=5000
+   CLIENT_URL=http://localhost:5173
+   JWT_SECRET=your_jwt_secret
+   SMTP_HOST=smtp.mailtrap.io        # Optional (console fallback used if omitted)
+   SMTP_PORT=2525
+   SMTP_USER=your_smtp_user
+   SMTP_PASS=your_smtp_password
+   SMTP_FROM=Campus Auction <noreply@campusauction.edu>
+   REQUIRE_EDU_DOMAIN=false          # Set true to enforce .edu / .ac.<country>
+   ```
+
+5. **No Mock or Seed Data:**
+   - All fake cards, sample listings, and mock seed scripts have been completely removed.
+   - Empty states show realistic messages ("No listings yet from your college").
+   - Accounts and listings are created live via the user interface.
+   - Automated tests run against an isolated test database (`data/test_pgdata`) and clean up automatically.
+
+---
+
 ## 🧪 Test Suite Checklist
 
-Run `npm test` to execute all 13 automated test suites:
+Run `npm test` to execute all 21 automated test suites:
+- [x] `getCollegeDomain`: parses subdomains (`kongu.edu`, `iitm.ac.in`) & rejects free/invalid emails
+- [x] Same-college isolation: User A (kongu) listing can be bid by User B (kongu); User C (iitm) gets 404 on detail & 403 on bid
+- [x] Two colleges running auctions concurrently: feeds remain strictly isolated
+- [x] Wanted items: alerts do not trigger across different colleges
+- [x] Socket room authorization: cross-college listing room joins are rejected
+- [x] Assistant tools: search, get, and propose-bid strictly scoped to user `college_domain`
+- [x] Unverified user restrictions: blocked from bidding and creating listings
+- [x] Listing `college_domain`: forced to creator college on create and locked against PATCH
 - [x] Bid below minimum rejected; first bid at start price accepted
 - [x] Subsequent bids must meet `current_price + min_increment`
 - [x] Seller cannot bid on own item; leader cannot outbid themselves manually
@@ -99,7 +155,7 @@ Run `npm test` to execute all 13 automated test suites:
 - [x] Sale state machine: approve -> handover -> completed
 - [x] Assistant guardrails: privacy (no emails) and proposal-before-bid enforcement
 - [x] Sale state machine: reject by seller and pickup_failed outcomes
-- [x] Wanted items: match notifications triggered for new listings (including offline)
+- [x] Wanted items: match notifications triggered for new listings in same college
 - [x] Questions before bidding: buyer asks, seller answers, spam hidden
 
 ---
@@ -112,3 +168,6 @@ Run `npm test` to execute all 13 automated test suites:
    Node.js `setTimeout` can drift, fail on server restarts, and consume unbound memory. Comparing against the single server clock ensures that even if background schedulers delay by milliseconds, the bidding endpoints will never accept a bid past closing time.
 3. **Why Server-Side Rule Enforcement:**
    Clients are inherently untrusted. All validation (increments, domain limits, timers, state transitions, AI guardrails) is enforced by Express middleware and database constraints.
+4. **Why Registrable Domain for College Identity:**
+   Using `tldts.getDomain()` correctly unifies department subdomains (`students.kongu.edu`, `cse.iitm.ac.in`) under their common institutional identity (`kongu.edu`, `iitm.ac.in`), enabling seamless same-college peer interactions without manual college mapping tables.
+

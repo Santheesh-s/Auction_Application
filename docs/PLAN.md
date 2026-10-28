@@ -418,3 +418,32 @@ A smaller, **correct** set beats a larger buggy one. Be ready to explain why you
 - Why `closes_at` comparison instead of timers.
 - Why server-side enforcement of every rule, including AI guardrails.
 - Why you chose your build order and what you deliberately skipped.
+
+---
+
+## 11. Multi-College Isolation & Email Verification Specification
+
+### Core Architectural Decisions:
+1. **Registrable College Domain:**
+   - Identity derived via `tldts.getDomain(email.split('@')[1])`. Subdomains like `students.kongu.edu` and `cse.iitm.ac.in` map cleanly to institutional boundaries (`kongu.edu`, `iitm.ac.in`).
+   - Personal providers (`gmail.com`, `yahoo.com`, `outlook.com`, etc.) rejected.
+2. **Migration `002_college_domain_and_verification.sql`:**
+   - `users.college_domain` (NOT NULL, indexed).
+   - `users.email_verified` (BOOLEAN, default false).
+   - `listings.college_domain` (NOT NULL, indexed).
+   - `wanted_items.college_domain` (NOT NULL, indexed).
+   - `email_verifications` table with token hash, user_id, expires_at (24h).
+3. **Strict Same-College Isolation:**
+   - Feed and search query: `WHERE college_domain = $userCollege`.
+   - Listing detail cross-college: returns **404 Not Found** (prevents cross-institution discovery).
+   - Bidding, auto-bids, Q&A: rejected with **`FORBIDDEN_COLLEGE`** (403).
+   - Socket rooms: `college:{domain}` and `user:{id}`. Cross-college listing room joins blocked.
+   - Wanted alerts: match exclusively within the student's college domain.
+   - AI assistant tools: strictly filtered by `college_domain`.
+4. **Email Verification:**
+   - Token sent on registration via Nodemailer (with dev console fallback).
+   - Unverified users blocked from bidding (`EMAIL_NOT_VERIFIED` 403), creating listings, and Q&A.
+5. **Zero Mock Data Policy:**
+   - All sample listings, fake seed users, and demo accounts removed.
+   - Tests run in an isolated test database (`data/test_pgdata`) and clean up after themselves.
+

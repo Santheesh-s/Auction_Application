@@ -15,3 +15,7 @@ server/uploads/*.webp
 !server/uploads/*.svg
 .DS_Store
 Thumbs.db
+session.md
+*.jpg
+*.jpeg
+*.png

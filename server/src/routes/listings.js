@@ -4,7 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { db } from '../db/pool.js';
 import { AppError } from '../middleware/errors.js';
-import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireAuth, optionalAuth, requireVerified } from '../middleware/auth.js';
+import { requireSameCollege } from '../middleware/college.js';
 import { realtime } from '../realtime/socket.js';
 import { createNotification } from '../services/notificationService.js';
 import { checkMatchesForNewListing } from '../services/wantedMatcher.js';
@@ -38,7 +39,7 @@ const upload = multer({
 });
 
 // GET /api/listings
-router.get('/', async (req, res, next) => {
+router.get('/', optionalAuth, async (req, res, next) => {
   try {
     const q = req.query.q;
     const category = req.query.category;
@@ -55,6 +56,17 @@ router.get('/', async (req, res, next) => {
     const conditions = [];
     const values = [];
     let pIdx = 1;
+
+    // Enforce same-college isolation: authenticated user's college takes strict precedence
+    const userCollege = req.user?.college_domain || req.query.college_domain || null;
+    if (userCollege) {
+      conditions.push(`l.college_domain = $${pIdx}`);
+      values.push(userCollege.toLowerCase().trim());
+      pIdx++;
+    } else {
+      // Unauthenticated with no college filter specified -> return empty list
+      conditions.push(`1 = 0`);
+    }
 
     if (status !== 'all') {
       conditions.push(`l.status = $${pIdx}`);
@@ -155,6 +167,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
       `SELECT l.id, l.seller_id, l.title, l.category, l.description, l.condition,
               l.start_price, l.min_increment, l.current_price, l.leading_bid_id,
               l.winner_id, l.closes_at, l.status, l.created_at, l.updated_at,
+              l.college_domain,
               u.name as seller_name,
               w.name as winner_name
        FROM listings l
@@ -169,6 +182,15 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
     }
 
     const listing = listingRes.rows[0];
+
+    // Enforce same-college isolation: return 404 to avoid leaking existence
+    if (req.user) {
+      requireSameCollege(listing, req.user, true);
+    } else if (req.query.college_domain) {
+      if (listing.college_domain.toLowerCase() !== req.query.college_domain.toLowerCase().trim()) {
+        throw new AppError('Listing not found', 404, 'NOT_FOUND');
+      }
+    }
 
     const imagesRes = await db.query(
       `SELECT id, url, position FROM listing_images WHERE listing_id = $1 ORDER BY position ASC`,
@@ -243,7 +265,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
 });
 
 // POST /api/listings
-router.post('/', requireAuth, upload.array('images', 5), async (req, res, next) => {
+router.post('/', requireAuth, requireVerified, upload.array('images', 5), async (req, res, next) => {
   const client = await db.connect();
   try {
     const {
@@ -281,12 +303,13 @@ router.post('/', requireAuth, upload.array('images', 5), async (req, res, next) 
 
     await client.query('BEGIN');
 
+    // Force college_domain = seller's college_domain from session (ignore any client-supplied value)
     const listingRes = await client.query(
       `INSERT INTO listings (
         seller_id, title, category, description, condition,
-        start_price, min_increment, closes_at, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open')
-      RETURNING id`,
+        start_price, min_increment, closes_at, status, college_domain
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9)
+      RETURNING id, college_domain`,
       [
         req.user.id,
         title.trim(),
@@ -296,6 +319,7 @@ router.post('/', requireAuth, upload.array('images', 5), async (req, res, next) 
         startPriceInt,
         minIncInt,
         closesAtDate.toISOString(),
+        req.user.college_domain,
       ]
     );
 
@@ -325,6 +349,7 @@ router.post('/', requireAuth, upload.array('images', 5), async (req, res, next) 
       description: description.trim(),
       category: category.trim(),
       start_price: startPriceInt,
+      college_domain: req.user.college_domain,
     }).catch(console.error);
 
     return res.status(201).json({ id: listingId, message: 'Listing created successfully' });
@@ -337,7 +362,7 @@ router.post('/', requireAuth, upload.array('images', 5), async (req, res, next) 
 });
 
 // PATCH /api/listings/:id
-router.patch('/:id', requireAuth, async (req, res, next) => {
+router.patch('/:id', requireAuth, requireVerified, async (req, res, next) => {
   const listingId = parseInt(req.params.id, 10);
   if (isNaN(listingId)) throw new AppError('Invalid listing ID', 400, 'INVALID_ID');
 
@@ -346,12 +371,14 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
     await client.query('BEGIN');
 
     const listingRes = await client.query(
-      'SELECT id, seller_id, status, leading_bid_id FROM listings WHERE id = $1 FOR UPDATE',
+      'SELECT id, seller_id, status, leading_bid_id, college_domain FROM listings WHERE id = $1 FOR UPDATE',
       [listingId]
     );
 
     if (listingRes.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
     const listing = listingRes.rows[0];
+
+    requireSameCollege(listing, req.user, false);
 
     if (listing.seller_id !== req.user.id) {
       throw new AppError('Only the seller can edit this listing', 403, 'FORBIDDEN');
@@ -438,7 +465,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/listings/:id/cancel
-router.post('/:id/cancel', requireAuth, async (req, res, next) => {
+router.post('/:id/cancel', requireAuth, requireVerified, async (req, res, next) => {
   const listingId = parseInt(req.params.id, 10);
   if (isNaN(listingId)) throw new AppError('Invalid listing ID', 400, 'INVALID_ID');
 
@@ -447,12 +474,14 @@ router.post('/:id/cancel', requireAuth, async (req, res, next) => {
     await client.query('BEGIN');
 
     const listingRes = await client.query(
-      'SELECT id, seller_id, title, status FROM listings WHERE id = $1 FOR UPDATE',
+      'SELECT id, seller_id, title, status, college_domain FROM listings WHERE id = $1 FOR UPDATE',
       [listingId]
     );
 
     if (listingRes.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
     const listing = listingRes.rows[0];
+
+    requireSameCollege(listing, req.user, false);
 
     if (listing.seller_id !== req.user.id) {
       throw new AppError('Only the seller can cancel this listing', 403, 'FORBIDDEN');

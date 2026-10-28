@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import api from '../lib/api.js';
 import getSocket from '../lib/socket.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import ListingCard from '../components/ListingCard.jsx';
 import {
   Search,
@@ -10,7 +11,8 @@ import {
   Clock,
   RotateCcw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  GraduationCap
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -38,6 +40,7 @@ const SORT_OPTIONS = [
 ];
 
 export default function Browse() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [query, setQuery] = useState(searchParams.get('q') || '');
@@ -123,13 +126,21 @@ export default function Browse() {
     <div className="space-y-6 py-6">
       {/* Header & Search Bar */}
       <div className="space-y-4">
-        <div>
-          <h1 className="text-3xl font-black text-white font-heading">
-            Browse Campus Auctions
-          </h1>
-          <p className="text-sm text-slate-400">
-            Find items listed by students across all campus hostels and departments.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-black text-white font-heading">
+              Browse Campus Auctions
+            </h1>
+            <p className="text-sm text-slate-400 mt-0.5">
+              Peer-to-peer student marketplace verified by official college email.
+            </p>
+          </div>
+          {user && (user.collegeDomain || user.college_domain) && (
+            <div className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shadow-sm">
+              <GraduationCap className="w-4 h-4 text-indigo-400" />
+              <span>Visible to students of <strong>{user.collegeDomain || user.college_domain}</strong> only</span>
+            </div>
+          )}
         </div>
 
         {/* Search & Sort Controls Bar */}

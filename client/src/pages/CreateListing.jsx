@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { PlusCircle, Upload, X, AlertCircle } from 'lucide-react';
+import { PlusCircle, Upload, X, AlertCircle, GraduationCap, ShieldAlert } from 'lucide-react';
 
 const CATEGORIES = [
   { id: 'cycle', name: 'Cycle (Geared / Standard)' },
@@ -107,14 +107,31 @@ export default function CreateListing() {
   return (
     <div className="max-w-3xl mx-auto py-8">
       <div className="glass-panel p-6 sm:p-10 rounded-3xl border border-slate-800 space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">
-            List an Item for Auction
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Fill in the details below. Once bids are placed, starting price and closing time are locked.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">
+              List an Item for Auction
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Fill in the details below. Once bids are placed, starting price and closing time are locked.
+            </p>
+          </div>
+          {user?.collegeDomain && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold self-start sm:self-auto shrink-0">
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Visible to students of {user.collegeDomain} only</span>
+            </div>
+          )}
         </div>
+
+        {!user?.emailVerified && (
+          <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-800 text-amber-300 text-xs flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>
+              Your college email is not verified yet. Please check your inbox to verify before creating listings.
+            </span>
+          </div>
+        )}
 
         {error && (
           <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
@@ -273,11 +290,11 @@ export default function CreateListing() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            disabled={loading || !user?.emailVerified}
+            className="w-full py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlusCircle className="w-5 h-5" />
-            {loading ? 'Creating Listing...' : 'Publish Auction'}
+            {!user?.emailVerified ? 'Verification Required to Publish' : loading ? 'Creating Listing...' : 'Publish Auction'}
           </button>
         </form>
       </div>

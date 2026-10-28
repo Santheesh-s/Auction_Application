@@ -35,6 +35,23 @@ export default function BidForm({ listing, userState, onBidSuccess }) {
     );
   }
 
+  if (!user.emailVerified) {
+    return (
+      <div className="p-6 rounded-2xl glass-card text-center border border-amber-500/20 bg-amber-950/20">
+        <h4 className="text-base font-semibold text-amber-200 mb-1">Email Verification Required</h4>
+        <p className="text-xs text-slate-400 mb-4">
+          You must verify your college email ({user.email}) before placing bids or auto-bids.
+        </p>
+        <a
+          href="/verify"
+          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white transition-colors"
+        >
+          Verify Email
+        </a>
+      </div>
+    );
+  }
+
   if (userState?.isSeller) {
     return (
       <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 text-center">

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { AppError } from '../middleware/errors.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireVerified } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { placeBid, setAutoBid, removeAutoBid } from '../services/biddingService.js';
 
@@ -19,6 +19,7 @@ const autoBidSchema = z.object({
 router.post(
   '/:id/bids',
   requireAuth,
+  requireVerified,
   validate({ body: bidSchema }),
   async (req, res, next) => {
     try {
@@ -42,6 +43,7 @@ router.post(
 router.put(
   '/:id/auto-bid',
   requireAuth,
+  requireVerified,
   validate({ body: autoBidSchema }),
   async (req, res, next) => {
     try {
@@ -65,6 +67,7 @@ router.put(
 router.delete(
   '/:id/auto-bid',
   requireAuth,
+  requireVerified,
   async (req, res, next) => {
     try {
       const listingId = parseInt(req.params.id, 10);

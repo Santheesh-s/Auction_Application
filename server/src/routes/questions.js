@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db/pool.js';
 import { AppError } from '../middleware/errors.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireVerified } from '../middleware/auth.js';
+import { requireSameCollege } from '../middleware/college.js';
 import { validate } from '../middleware/validate.js';
 import { createNotification } from '../services/notificationService.js';
 import { realtime } from '../realtime/socket.js';
@@ -21,6 +22,7 @@ const answerSchema = z.object({
 router.post(
   '/listings/:id/questions',
   requireAuth,
+  requireVerified,
   validate({ body: askSchema }),
   async (req, res, next) => {
     try {
@@ -28,12 +30,14 @@ router.post(
       if (isNaN(listingId)) throw new AppError('Invalid listing ID', 400, 'INVALID_ID');
 
       const listingRes = await db.query(
-        'SELECT id, seller_id, title, status FROM listings WHERE id = $1',
+        'SELECT id, seller_id, title, status, college_domain FROM listings WHERE id = $1',
         [listingId]
       );
 
       if (listingRes.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
       const listing = listingRes.rows[0];
+
+      requireSameCollege(listing, req.user, false);
 
       if (listing.seller_id === req.user.id) {
         throw new AppError('Sellers cannot ask questions on their own listings', 400, 'CANNOT_ASK_OWN_LISTING');
@@ -86,6 +90,7 @@ router.post(
 router.post(
   '/questions/:id/answer',
   requireAuth,
+  requireVerified,
   validate({ body: answerSchema }),
   async (req, res, next) => {
     try {
@@ -93,7 +98,7 @@ router.post(
       if (isNaN(questionId)) throw new AppError('Invalid question ID', 400, 'INVALID_ID');
 
       const qRes = await db.query(
-        `SELECT q.id, q.listing_id, q.asker_id, q.body, l.seller_id, l.title as listing_title
+        `SELECT q.id, q.listing_id, q.asker_id, q.body, l.seller_id, l.title as listing_title, l.college_domain
          FROM questions q
          JOIN listings l ON q.listing_id = l.id
          WHERE q.id = $1`,
@@ -102,6 +107,8 @@ router.post(
 
       if (qRes.rows.length === 0) throw new AppError('Question not found', 404, 'NOT_FOUND');
       const question = qRes.rows[0];
+
+      requireSameCollege(question, req.user, false);
 
       if (question.seller_id !== req.user.id) {
         throw new AppError('Only the seller can answer questions for this listing', 403, 'FORBIDDEN');
@@ -130,13 +137,13 @@ router.post(
 );
 
 // POST /api/questions/:id/hide
-router.post('/questions/:id/hide', requireAuth, async (req, res, next) => {
+router.post('/questions/:id/hide', requireAuth, requireVerified, async (req, res, next) => {
   try {
     const questionId = parseInt(req.params.id, 10);
     if (isNaN(questionId)) throw new AppError('Invalid question ID', 400, 'INVALID_ID');
 
     const qRes = await db.query(
-      `SELECT q.id, q.listing_id, l.seller_id
+      `SELECT q.id, q.listing_id, l.seller_id, l.college_domain
        FROM questions q
        JOIN listings l ON q.listing_id = l.id
        WHERE q.id = $1`,
@@ -145,6 +152,8 @@ router.post('/questions/:id/hide', requireAuth, async (req, res, next) => {
 
     if (qRes.rows.length === 0) throw new AppError('Question not found', 404, 'NOT_FOUND');
     const question = qRes.rows[0];
+
+    requireSameCollege(question, req.user, false);
 
     if (question.seller_id !== req.user.id) {
       throw new AppError('Only the seller can hide questions', 403, 'FORBIDDEN');

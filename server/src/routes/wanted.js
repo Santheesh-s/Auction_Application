@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db/pool.js';
 import { AppError } from '../middleware/errors.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireVerified } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { checkMatchesForNewWantedItem } from '../services/wantedMatcher.js';
 
@@ -18,11 +18,11 @@ const wantedSchema = z.object({
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT id, user_id, keywords, category, max_price, active, created_at
+      `SELECT id, user_id, keywords, category, max_price, active, college_domain, created_at
        FROM wanted_items
-       WHERE user_id = $1 AND active = true
+       WHERE user_id = $1 AND active = true AND college_domain = $2
        ORDER BY created_at DESC`,
-      [req.user.id]
+      [req.user.id, req.user.college_domain]
     );
     return res.json({ wantedItems: result.rows });
   } catch (err) {
@@ -31,19 +31,20 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/wanted
-router.post('/', requireAuth, validate({ body: wantedSchema }), async (req, res, next) => {
+router.post('/', requireAuth, requireVerified, validate({ body: wantedSchema }), async (req, res, next) => {
   try {
     const { keywords, category, max_price } = req.body;
 
     const result = await db.query(
-      `INSERT INTO wanted_items (user_id, keywords, category, max_price, active)
-       VALUES ($1, $2, $3, $4, true)
-       RETURNING id, user_id, keywords, category, max_price, active, created_at`,
+      `INSERT INTO wanted_items (user_id, keywords, category, max_price, active, college_domain)
+       VALUES ($1, $2, $3, $4, true, $5)
+       RETURNING id, user_id, keywords, category, max_price, active, college_domain, created_at`,
       [
         req.user.id,
         keywords.trim(),
         category?.trim() || null,
         max_price ? Math.floor(max_price) : null,
+        req.user.college_domain,
       ]
     );
 

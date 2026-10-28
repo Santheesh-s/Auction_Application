@@ -142,10 +142,15 @@ export async function approveSale(listingId, sellerId, note) {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT id, seller_id, winner_id, title, status, current_price FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
+    const res = await client.query('SELECT id, seller_id, winner_id, title, status, current_price, college_domain FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
 
     if (res.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
     const listing = res.rows[0];
+
+    const sellerRes = await client.query('SELECT college_domain FROM users WHERE id = $1', [sellerId]);
+    if (sellerRes.rows[0]?.college_domain !== listing.college_domain) {
+      throw new AppError('Participation is restricted to students of the same college', 403, 'FORBIDDEN_COLLEGE');
+    }
 
     if (listing.seller_id !== sellerId) {
       throw new AppError('Only the seller can approve this sale', 403, 'FORBIDDEN');
@@ -190,10 +195,15 @@ export async function rejectSale(listingId, sellerId, note) {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT id, seller_id, winner_id, title, status FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
+    const res = await client.query('SELECT id, seller_id, winner_id, title, status, college_domain FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
 
     if (res.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
     const listing = res.rows[0];
+
+    const sellerRes = await client.query('SELECT college_domain FROM users WHERE id = $1', [sellerId]);
+    if (sellerRes.rows[0]?.college_domain !== listing.college_domain) {
+      throw new AppError('Participation is restricted to students of the same college', 403, 'FORBIDDEN_COLLEGE');
+    }
 
     if (listing.seller_id !== sellerId) {
       throw new AppError('Only the seller can reject this sale', 403, 'FORBIDDEN');
@@ -238,10 +248,15 @@ export async function confirmHandover(listingId, actorId, note) {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT id, seller_id, winner_id, title, status FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
+    const res = await client.query('SELECT id, seller_id, winner_id, title, status, college_domain FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
 
     if (res.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
     const listing = res.rows[0];
+
+    const actorRes = await client.query('SELECT college_domain FROM users WHERE id = $1', [actorId]);
+    if (actorRes.rows[0]?.college_domain !== listing.college_domain) {
+      throw new AppError('Participation is restricted to students of the same college', 403, 'FORBIDDEN_COLLEGE');
+    }
 
     if (listing.seller_id !== actorId && listing.winner_id !== actorId) {
       throw new AppError('Only the seller or buyer can confirm handover', 403, 'FORBIDDEN');
@@ -287,10 +302,15 @@ export async function reportPickupFailed(listingId, sellerId, note) {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT id, seller_id, winner_id, title, status FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
+    const res = await client.query('SELECT id, seller_id, winner_id, title, status, college_domain FROM listings WHERE id = $1 FOR UPDATE', [listingId]);
 
     if (res.rows.length === 0) throw new AppError('Listing not found', 404, 'NOT_FOUND');
     const listing = res.rows[0];
+
+    const sellerRes = await client.query('SELECT college_domain FROM users WHERE id = $1', [sellerId]);
+    if (sellerRes.rows[0]?.college_domain !== listing.college_domain) {
+      throw new AppError('Participation is restricted to students of the same college', 403, 'FORBIDDEN_COLLEGE');
+    }
 
     if (listing.seller_id !== sellerId) {
       throw new AppError('Only the seller can report failed pickup', 403, 'FORBIDDEN');

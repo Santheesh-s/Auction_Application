@@ -25,7 +25,7 @@ export async function placeBid(listingId, userId, amount, isAuto = false) {
     // 1. Lock the listing row with SELECT ... FOR UPDATE
     const listingRes = await client.query(
       `SELECT id, seller_id, title, start_price, min_increment, current_price,
-              leading_bid_id, status, closes_at, now() as now
+              leading_bid_id, status, closes_at, college_domain, now() as now
        FROM listings
        WHERE id = $1
        FOR UPDATE`,
@@ -40,6 +40,22 @@ export async function placeBid(listingId, userId, amount, isAuto = false) {
     listingTitle = listing.title;
     const nowTime = new Date(listing.now).getTime();
     let closesAtTime = new Date(listing.closes_at).getTime();
+
+    // Verify bidder identity and same college
+    const userRes = await client.query(
+      'SELECT id, college_domain, email_verified FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userRes.rows.length === 0) throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    const bidder = userRes.rows[0];
+
+    if (!bidder.email_verified) {
+      throw new AppError('Email verification required to place bids', 403, 'EMAIL_NOT_VERIFIED');
+    }
+
+    if (!bidder.college_domain || !listing.college_domain || bidder.college_domain.toLowerCase().trim() !== listing.college_domain.toLowerCase().trim()) {
+      throw new AppError('Participation is restricted to students of the same college', 403, 'FORBIDDEN_COLLEGE');
+    }
 
     // 2. Validate status
     if (listing.status !== 'open') {
@@ -144,14 +160,16 @@ export async function placeBid(listingId, userId, amount, isAuto = false) {
       const minRequired = currentPrice + listing.min_increment;
 
       const eligibleRes = await client.query(
-        `SELECT id, user_id, max_amount, created_at
-         FROM auto_bids
-         WHERE listing_id = $1
-           AND user_id != $2
-           AND max_amount >= $3
-         ORDER BY max_amount DESC, created_at ASC
+        `SELECT ab.id, ab.user_id, ab.max_amount, ab.created_at
+         FROM auto_bids ab
+         JOIN users u ON ab.user_id = u.id
+         WHERE ab.listing_id = $1
+           AND ab.user_id != $2
+           AND ab.max_amount >= $3
+           AND LOWER(u.college_domain) = LOWER($4)
+         ORDER BY ab.max_amount DESC, ab.created_at ASC
          LIMIT 1`,
-        [listingId, leaderId, minRequired]
+        [listingId, leaderId, minRequired, listing.college_domain]
       );
 
       if (eligibleRes.rows.length === 0) {
@@ -288,7 +306,7 @@ export async function setAutoBid(listingId, userId, maxAmount) {
 
     const listingRes = await client.query(
       `SELECT id, seller_id, title, start_price, min_increment, current_price,
-              leading_bid_id, status, closes_at, now() as now
+              leading_bid_id, status, closes_at, college_domain, now() as now
        FROM listings
        WHERE id = $1
        FOR UPDATE`,
@@ -300,6 +318,22 @@ export async function setAutoBid(listingId, userId, maxAmount) {
     }
 
     const listing = listingRes.rows[0];
+
+    // Enforce verified status and same college
+    const userRes = await client.query(
+      'SELECT id, college_domain, email_verified FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userRes.rows.length === 0) throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    const autoBidder = userRes.rows[0];
+
+    if (!autoBidder.email_verified) {
+      throw new AppError('Email verification required to configure auto-bids', 403, 'EMAIL_NOT_VERIFIED');
+    }
+
+    if (!autoBidder.college_domain || !listing.college_domain || autoBidder.college_domain.toLowerCase().trim() !== listing.college_domain.toLowerCase().trim()) {
+      throw new AppError('Participation is restricted to students of the same college', 403, 'FORBIDDEN_COLLEGE');
+    }
     if (listing.status !== 'open') {
       throw new AppError('Listing is not open for bidding', 400, 'NOT_OPEN');
     }

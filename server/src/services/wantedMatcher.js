@@ -14,11 +14,13 @@ function matchesKeywords(text, keywordsStr) {
 }
 
 export async function checkMatchesForNewListing(listing) {
+  if (!listing.college_domain) return;
+
   const wantedRes = await db.query(
     `SELECT id, user_id, keywords, category, max_price, active
      FROM wanted_items
-     WHERE active = true AND user_id != $1`,
-    [listing.seller_id]
+     WHERE active = true AND user_id != $1 AND LOWER(college_domain) = LOWER($2)`,
+    [listing.seller_id, listing.college_domain]
   );
 
   const fullText = `${listing.title} ${listing.description}`;
@@ -51,11 +53,13 @@ export async function checkMatchesForNewListing(listing) {
 }
 
 export async function checkMatchesForNewWantedItem(wantedItem) {
+  if (!wantedItem.college_domain) return 0;
+
   const listingsRes = await db.query(
     `SELECT id, seller_id, title, description, category, start_price, current_price
      FROM listings
-     WHERE status = 'open' AND closes_at > now() AND seller_id != $1`,
-    [wantedItem.user_id]
+     WHERE status = 'open' AND closes_at > now() AND seller_id != $1 AND LOWER(college_domain) = LOWER($2)`,
+    [wantedItem.user_id, wantedItem.college_domain]
   );
 
   let matchCount = 0;

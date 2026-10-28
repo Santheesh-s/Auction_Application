@@ -70,31 +70,38 @@ export default function QnASection({ listingId, sellerId, questions, onRefresh }
 
       {/* Ask Question Form (For non-sellers) */}
       {user && !isSeller && (
-        <form onSubmit={handleAsk} className="space-y-2">
-          <div className="relative">
-            <textarea
-              rows={2}
-              maxLength={300}
-              placeholder="Ask the seller about item condition, hostel location, or accessories (max 300 chars)..."
-              value={questionBody}
-              onChange={(e) => setQuestionBody(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-              required
-            />
-            <span className="absolute bottom-2.5 right-3 text-[10px] text-slate-500">
-              {300 - questionBody.length} left
-            </span>
+        !user.emailVerified ? (
+          <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800 text-amber-300 text-xs flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Verify your college email to ask questions to the seller.</span>
           </div>
+        ) : (
+          <form onSubmit={handleAsk} className="space-y-2">
+            <div className="relative">
+              <textarea
+                rows={2}
+                maxLength={300}
+                placeholder="Ask the seller about item condition, hostel location, or accessories (max 300 chars)..."
+                value={questionBody}
+                onChange={(e) => setQuestionBody(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                required
+              />
+              <span className="absolute bottom-2.5 right-3 text-[10px] text-slate-500">
+                {300 - questionBody.length} left
+              </span>
+            </div>
 
-          <button
-            type="submit"
-            disabled={submitting || !questionBody.trim()}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center gap-1.5 ml-auto disabled:opacity-50"
-          >
-            <Send className="w-3.5 h-3.5" />
-            {submitting ? 'Posting...' : 'Ask Question'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={submitting || !questionBody.trim()}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center gap-1.5 ml-auto disabled:opacity-50"
+            >
+              <Send className="w-3.5 h-3.5" />
+              {submitting ? 'Posting...' : 'Ask Question'}
+            </button>
+          </form>
+        )
       )}
 
       {/* Questions List */}

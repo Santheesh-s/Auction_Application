@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { BookmarkCheck, Plus, Trash2, Bell, CheckCircle2, AlertCircle } from 'lucide-react';
+import { BookmarkCheck, Plus, Trash2, Bell, CheckCircle2, AlertCircle, GraduationCap, ShieldAlert } from 'lucide-react';
 
 const CATEGORIES = [
   { id: '', name: 'Any Category' },
@@ -88,15 +88,32 @@ export default function Wanted() {
 
   return (
     <div className="max-w-4xl mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading flex items-center gap-2">
-          <BookmarkCheck className="w-7 h-7 text-indigo-400" />
-          Campus Item Alerts (Never Miss What You Need)
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Set up keyword alerts for items you need (e.g. "scientific calculator", "geared cycle"). As soon as another student lists it, you'll receive a live notification.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-heading flex items-center gap-2">
+            <BookmarkCheck className="w-7 h-7 text-indigo-400" />
+            Campus Item Alerts
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Set up keyword alerts for items you need (e.g. "scientific calculator", "geared cycle"). As soon as another student in your college lists it, you'll receive a live notification.
+          </p>
+        </div>
+        {user?.collegeDomain && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold self-start sm:self-auto shrink-0">
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span>Monitors {user.collegeDomain}</span>
+          </div>
+        )}
       </div>
+
+      {!user?.emailVerified && (
+        <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-800 text-amber-300 text-xs flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+          <span>
+            Your college email is not verified yet. Please check your inbox to verify before creating alerts.
+          </span>
+        </div>
+      )}
 
       {/* Create Alert Card */}
       <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
@@ -161,11 +178,11 @@ export default function Wanted() {
 
           <button
             type="submit"
-            disabled={submitting}
-            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            disabled={submitting || !user?.emailVerified}
+            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Bell className="w-4 h-4" />
-            {submitting ? 'Setting Alert...' : 'Save Item Alert'}
+            {!user?.emailVerified ? 'Verification Required' : submitting ? 'Setting Alert...' : 'Save Item Alert'}
           </button>
         </form>
       </div>

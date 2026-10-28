@@ -81,6 +81,22 @@ export async function requireAuth(req, res, next) {
   }
 }
 
+export function requireVerified(req, res, next) {
+  if (!req.user) {
+    return next(new AppError('Authentication required. Please log in.', 401, 'UNAUTHORIZED'));
+  }
+  if (!req.user.email_verified) {
+    return next(
+      new AppError(
+        'Please verify your college email address to perform this action. Check your inbox or request a new verification link.',
+        403,
+        'EMAIL_NOT_VERIFIED'
+      )
+    );
+  }
+  next();
+}
+
 export async function optionalAuth(req, res, next) {
   const token = extractToken(req);
   if (!token) {

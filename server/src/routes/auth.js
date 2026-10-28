@@ -6,6 +6,7 @@ import { AppError } from '../middleware/errors.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { validateCollegeEmail } from '../utils/college.js';
+import { createVerificationToken, sendVerificationEmail, verifyEmailToken } from '../utils/mailer.js';
 
 const router = Router();
 
@@ -55,6 +56,16 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
     const user = insertRes.rows[0];
     const token = signToken(user);
 
+    // Create 24h verification token and send email
+    try {
+      const rawVerifyToken = await createVerificationToken(user.id);
+      sendVerificationEmail(user.email, rawVerifyToken).catch(err => {
+        console.error('Failed to dispatch verification email:', err);
+      });
+    } catch (verifErr) {
+      console.error('Failed to create verification token:', verifErr);
+    }
+
     res.cookie('token', token, COOKIE_OPTIONS);
     return res.status(201).json({
       user: {
@@ -63,10 +74,11 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
         email: user.email,
         collegeDomain: user.college_domain,
         college_domain: user.college_domain,
-        emailVerified: Boolean(user.email_verified),
-        email_verified: Boolean(user.email_verified),
+        emailVerified: false,
+        email_verified: false,
       },
       token,
+      message: 'Registration successful! Please check your email to verify your college account.',
     });
   } catch (err) {
     next(err);
@@ -110,6 +122,66 @@ router.post('/login', validate({ body: loginSchema }), async (req, res, next) =>
       user: authUser,
       token,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/verify
+router.post('/verify', async (req, res, next) => {
+  try {
+    const token = req.body?.token || req.query?.token;
+    if (!token) throw new AppError('Verification token is required', 400, 'TOKEN_REQUIRED');
+
+    const result = await verifyEmailToken(token);
+    if (!result.success) {
+      throw new AppError(result.error || 'Verification failed', 400, 'VERIFICATION_FAILED');
+    }
+
+    return res.json({ message: 'Email verified successfully! You now have full access to campus auctions.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/auth/verify
+router.get('/verify', async (req, res, next) => {
+  try {
+    const token = req.query?.token;
+    if (!token) throw new AppError('Verification token is required', 400, 'TOKEN_REQUIRED');
+
+    const result = await verifyEmailToken(token);
+    if (!result.success) {
+      throw new AppError(result.error || 'Verification failed', 400, 'VERIFICATION_FAILED');
+    }
+
+    return res.json({ message: 'Email verified successfully! You now have full access to campus auctions.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/resend-verification
+router.post('/resend-verification', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.email_verified) {
+      return res.json({ message: 'Your college email is already verified.' });
+    }
+
+    const recent = await db.query(
+      `SELECT created_at FROM email_verifications
+       WHERE user_id = $1 AND created_at > now() - interval '60 seconds'`,
+      [req.user.id]
+    );
+
+    if (recent.rows.length > 0) {
+      throw new AppError('Please wait at least 60 seconds before requesting another verification email', 429, 'RATE_LIMITED');
+    }
+
+    const rawVerifyToken = await createVerificationToken(req.user.id);
+    sendVerificationEmail(req.user.email, rawVerifyToken).catch(console.error);
+
+    return res.json({ message: 'Verification link resent. Please check your inbox or server console.' });
   } catch (err) {
     next(err);
   }

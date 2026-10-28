@@ -16,8 +16,10 @@ import {
   User,
   Check,
   Clock,
-  ChevronDown
+  ChevronDown,
+  GraduationCap
 } from 'lucide-react';
+import VerificationBanner from './VerificationBanner.jsx';
 
 export default function Navbar() {
   const { user, logout, browserNotifEnabled, requestNotificationPermission } = useAuth();
@@ -261,6 +263,14 @@ export default function Navbar() {
                   )}
                 </div>
 
+                {/* College Badge */}
+                {(user.collegeDomain || user.college_domain) && (
+                  <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                    <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{user.collegeDomain || user.college_domain}</span>
+                  </span>
+                )}
+
                 {/* User Menu */}
                 <div className="relative">
                   <button
@@ -280,10 +290,13 @@ export default function Navbar() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-52 glass-panel rounded-2xl shadow-2xl border border-slate-700/80 py-2 z-50">
+                    <div className="absolute right-0 mt-2 w-56 glass-panel rounded-2xl shadow-2xl border border-slate-700/80 py-2 z-50">
                       <div className="px-4 py-2 border-b border-slate-800">
                         <p className="text-sm font-semibold text-slate-100">{user.name}</p>
-                        <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                        <p className="text-xs text-indigo-300 font-medium flex items-center gap-1 mt-0.5">
+                          <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{user.collegeDomain || user.college_domain}</span>
+                        </p>
                       </div>
 
                       <Link
@@ -345,6 +358,7 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+      <VerificationBanner />
     </header>
   );
 }

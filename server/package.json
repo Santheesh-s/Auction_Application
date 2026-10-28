@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch-path=src src/index.js",
-    "start": "node src/index.js",
-    "migrate": "node src/db/migrate.js",
+    "dev": "node --max-old-space-size=4096 --watch-path=src src/index.js",
+    "start": "node --max-old-space-size=4096 src/index.js",
+    "migrate": "node --max-old-space-size=4096 src/db/migrate.js",
     "test": "node --max-old-space-size=4096 test/run-tests.js"
   },
   "dependencies": {

@@ -23,8 +23,6 @@ import assistantRouter from './routes/assistant.js';
 import timeRouter from './routes/time.js';
 import meRouter from './routes/me.js';
 
-dotenv.config();
-
 const app = express();
 const server = http.createServer(app);
 

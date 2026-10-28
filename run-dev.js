@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 console.log('\x1b[36m%s\x1b[0m', '🚀 Starting Campus Auction monorepo (Server + Client)...');
 
-const serverProc = spawn(process.execPath, ['src/index.js'], {
+const serverProc = spawn(process.execPath, ['--max-old-space-size=4096', 'src/index.js'], {
   cwd: path.join(__dirname, 'server'),
   stdio: 'inherit',
 });

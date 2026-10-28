@@ -61,6 +61,14 @@ class PGliteAdapter {
         if (!fs.existsSync(this.dataDir)) {
           fs.mkdirSync(this.dataDir, { recursive: true });
         }
+        // Auto-clean stale lock files from previous unclean shutdowns
+        const lockFile = path.join(this.dataDir, '.s.PGSQL.5432.lock.out');
+        const pidFile = path.join(this.dataDir, 'postmaster.pid');
+        try {
+          if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
+          if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+        } catch {}
+
         this.pglite = new PGlite(this.dataDir);
         await this.pglite.waitReady;
       })();
@@ -143,10 +151,19 @@ export function getDb() {
 
 export async function closeDb() {
   if (dbInstance) {
-    await dbInstance.close();
+    try {
+      await dbInstance.close();
+    } catch {}
     dbInstance = null;
   }
 }
+
+process.once('SIGINT', async () => {
+  await closeDb();
+});
+process.once('SIGTERM', async () => {
+  await closeDb();
+});
 
 export const db = {
   query: (text, params) => getDb().query(text, params),

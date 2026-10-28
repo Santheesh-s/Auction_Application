@@ -4,17 +4,40 @@ import { db } from '../db/pool.js';
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-let transporter = null;
-if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+/**
+ * Returns a configured Nodemailer transporter if SMTP credentials are provided.
+ */
+export function getTransporter() {
+  const user = (process.env.SMTP_USER || process.env.SMTP_MAIL || '').trim();
+  const rawPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '').trim();
+  const pass = rawPass.replace(/\s+/g, '');
+  const host = (process.env.SMTP_HOST || '').trim();
+  const service = (process.env.SMTP_SERVICE || '').trim();
+
+  if (service.toLowerCase() === 'gmail' && user && pass) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
+    });
+  }
+
+  if (host && user && pass) {
+    const port = parseInt(process.env.SMTP_PORT || '587', 10);
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure: process.env.SMTP_SECURE === 'true' || port === 465,
+      auth: { user, pass },
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
+    });
+  }
+
+  return null;
 }
 
 /**
@@ -49,30 +72,45 @@ export async function createVerificationToken(userId) {
  * @param {string} rawToken
  */
 export async function sendVerificationEmail(toEmail, rawToken) {
-  const verifyUrl = `${CLIENT_URL}/verify?token=${rawToken}`;
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const verifyUrl = `${clientUrl}/verify?token=${rawToken}`;
+  const transporter = getTransporter();
 
   if (transporter) {
     try {
-      await transporter.sendMail({
-        from: process.env.FROM_EMAIL || '"Campus Auction" <no-reply@campusauction.edu>',
+      const fromEmail =
+        process.env.SMTP_FROM ||
+        process.env.FROM_EMAIL ||
+        process.env.SMTP_MAIL ||
+        process.env.SMTP_USER ||
+        '"Campus Auction" <no-reply@campusauction.edu>';
+
+      const info = await transporter.sendMail({
+        from: fromEmail,
         to: toEmail,
         subject: '🎓 Verify your College Auction Account',
         html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2>Verify Your Campus Auction Account</h2>
-            <p>Welcome to Campus Auction! Please click the button below to verify your college email address:</p>
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <h2 style="color: #1e1b4b; margin-top: 0; font-size: 20px;">Verify Your Campus Auction Account</h2>
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+              Welcome to Campus Auction! Please click the button below to verify your college email address and activate bidding:
+            </p>
             <div style="margin: 25px 0;">
-              <a href="${verifyUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+              <a href="${verifyUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 14px;">
                 Verify Email Address
               </a>
             </div>
             <p style="color: #64748b; font-size: 13px;">Or copy and paste this link in your browser:</p>
-            <p style="color: #64748b; font-size: 13px; word-break: break-all;">${verifyUrl}</p>
-            <p style="color: #94a3b8; font-size: 12px;">This link expires in 24 hours.</p>
+            <p style="color: #4f46e5; font-size: 13px; word-break: break-all;">
+              <a href="${verifyUrl}" style="color: #4f46e5;">${verifyUrl}</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" />
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">This verification link expires in 24 hours. If you did not create an account, you can safely ignore this email.</p>
           </div>
         `,
       });
-      return;
+      console.log(`✉️ Verification email sent via SMTP to ${toEmail} (Message ID: ${info.messageId})`);
+      return info;
     } catch (err) {
       console.error('SMTP send failed, falling back to console:', err.message);
     }

@@ -20,8 +20,10 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
+    "nodemailer": "^10.2.1",
     "pg": "^8.13.1",
     "socket.io": "^4.8.1",
+    "tldts": "^7.4.19",
     "zod": "^3.24.1"
   }
 }

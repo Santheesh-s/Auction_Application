@@ -5,6 +5,7 @@ import { db } from '../db/pool.js';
 import { AppError } from '../middleware/errors.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { validateCollegeEmail } from '../utils/college.js';
 
 const router = Router();
 
@@ -32,14 +33,11 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
     const { name, email, password } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
-    const campusDomain = process.env.CAMPUS_EMAIL_DOMAIN?.trim();
-    if (campusDomain && !normalizedEmail.endsWith(`@${campusDomain}`)) {
-      throw new AppError(
-        `Registration is restricted to campus email addresses (@${campusDomain})`,
-        400,
-        'INVALID_CAMPUS_DOMAIN'
-      );
+    const collegeCheck = validateCollegeEmail(normalizedEmail);
+    if (!collegeCheck.valid) {
+      throw new AppError(collegeCheck.error, 400, 'INVALID_COLLEGE_EMAIL');
     }
+    const collegeDomain = collegeCheck.collegeDomain;
 
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
@@ -48,10 +46,10 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
 
     const passwordHash = await bcrypt.hash(password, 10);
     const insertRes = await db.query(
-      `INSERT INTO users (name, email, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, email`,
-      [name.trim(), normalizedEmail, passwordHash]
+      `INSERT INTO users (name, email, password_hash, college_domain, email_verified)
+       VALUES ($1, $2, $3, $4, false)
+       RETURNING id, name, email, college_domain, email_verified`,
+      [name.trim(), normalizedEmail, passwordHash, collegeDomain]
     );
 
     const user = insertRes.rows[0];
@@ -59,7 +57,15 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
 
     res.cookie('token', token, COOKIE_OPTIONS);
     return res.status(201).json({
-      user: { id: user.id, name: user.name, email: user.email },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        collegeDomain: user.college_domain,
+        college_domain: user.college_domain,
+        emailVerified: Boolean(user.email_verified),
+        email_verified: Boolean(user.email_verified),
+      },
       token,
     });
   } catch (err) {
@@ -74,7 +80,7 @@ router.post('/login', validate({ body: loginSchema }), async (req, res, next) =>
     const normalizedEmail = email.trim().toLowerCase();
 
     const userRes = await db.query(
-      'SELECT id, name, email, password_hash FROM users WHERE email = $1',
+      'SELECT id, name, email, password_hash, college_domain, email_verified FROM users WHERE email = $1',
       [normalizedEmail]
     );
 
@@ -88,7 +94,15 @@ router.post('/login', validate({ body: loginSchema }), async (req, res, next) =>
       throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
 
-    const authUser = { id: user.id, name: user.name, email: user.email };
+    const authUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      collegeDomain: user.college_domain,
+      college_domain: user.college_domain,
+      emailVerified: Boolean(user.email_verified),
+      email_verified: Boolean(user.email_verified),
+    };
     const token = signToken(authUser);
 
     res.cookie('token', token, COOKIE_OPTIONS);

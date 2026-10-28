@@ -1,0 +1,15 @@
+export const BLOCKED_PERSONAL_DOMAINS = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'yahoo.in',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'icloud.com',
+  'proton.me',
+  'protonmail.com',
+  'rediffmail.com',
+  'aol.com',
+  'zoho.com',
+]);

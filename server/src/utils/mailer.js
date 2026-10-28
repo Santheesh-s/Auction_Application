@@ -11,29 +11,21 @@ export function getTransporter() {
   const user = (process.env.SMTP_USER || process.env.SMTP_MAIL || '').trim();
   const rawPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '').trim();
   const pass = rawPass.replace(/\s+/g, '');
-  const host = (process.env.SMTP_HOST || '').trim();
-  const service = (process.env.SMTP_SERVICE || '').trim();
+  const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
 
-  if (service.toLowerCase() === 'gmail' && user && pass) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-      connectionTimeout: 5000,
-      greetingTimeout: 5000,
-      socketTimeout: 5000,
-    });
-  }
-
-  if (host && user && pass) {
-    const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  if (user && pass) {
     return nodemailer.createTransport({
       host,
       port,
-      secure: process.env.SMTP_SECURE === 'true' || port === 465,
+      secure: port === 465,
       auth: { user, pass },
-      connectionTimeout: 5000,
-      greetingTimeout: 5000,
-      socketTimeout: 5000,
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
     });
   }
 

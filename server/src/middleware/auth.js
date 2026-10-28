@@ -11,6 +11,7 @@ export function signToken(user) {
       name: user.name,
       email: user.email,
       college_domain: user.college_domain || user.collegeDomain,
+      college_name: user.college_name || user.collegeName,
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -26,6 +27,7 @@ export function verifyToken(token) {
         name: payload.name,
         email: payload.email,
         college_domain: payload.college_domain,
+        college_name: payload.college_name,
       };
     }
     return null;
@@ -58,7 +60,7 @@ export async function requireAuth(req, res, next) {
 
   try {
     const userRes = await db.query(
-      'SELECT id, name, email, college_domain, email_verified FROM users WHERE id = $1',
+      'SELECT id, name, email, college_domain, college_name, email_verified FROM users WHERE id = $1',
       [payload.id]
     );
     if (userRes.rows.length === 0) {
@@ -72,6 +74,8 @@ export async function requireAuth(req, res, next) {
       email: row.email,
       college_domain: row.college_domain,
       collegeDomain: row.college_domain,
+      college_name: row.college_name,
+      collegeName: row.college_name,
       email_verified: Boolean(row.email_verified),
       emailVerified: Boolean(row.email_verified),
     };

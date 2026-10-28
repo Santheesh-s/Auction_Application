@@ -264,10 +264,10 @@ export default function Navbar() {
                 </div>
 
                 {/* College Badge */}
-                {(user.collegeDomain || user.college_domain) && (
-                  <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                    <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>{user.collegeDomain || user.college_domain}</span>
+                {(user.collegeName || user.college_name || user.collegeDomain || user.college_domain) && (
+                  <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 max-w-[220px] truncate" title={user.collegeName || user.college_name || user.collegeDomain}>
+                    <GraduationCap className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span className="truncate">{user.collegeName || user.college_name || user.collegeDomain || user.college_domain}</span>
                   </span>
                 )}
 
@@ -293,8 +293,13 @@ export default function Navbar() {
                     <div className="absolute right-0 mt-2 w-56 glass-panel rounded-2xl shadow-2xl border border-slate-700/80 py-2 z-50">
                       <div className="px-4 py-2 border-b border-slate-800">
                         <p className="text-sm font-semibold text-slate-100">{user.name}</p>
+                        {(user.collegeName || user.college_name) && (
+                          <p className="text-xs text-slate-300 truncate mt-0.5">
+                            {user.collegeName || user.college_name}
+                          </p>
+                        )}
                         <p className="text-xs text-indigo-300 font-medium flex items-center gap-1 mt-0.5">
-                          <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                          <GraduationCap className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                           <span>{user.collegeDomain || user.college_domain}</span>
                         </p>
                       </div>

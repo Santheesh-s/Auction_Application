@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { PlusCircle, Upload, X, AlertCircle, GraduationCap, ShieldAlert } from 'lucide-react';
+import { PlusCircle, Upload, X, AlertCircle, GraduationCap, ShieldAlert, Mail, RefreshCw, CheckCircle } from 'lucide-react';
 
 const CATEGORIES = [
   { id: 'cycle', name: 'Cycle (Geared / Standard)' },
@@ -21,7 +21,7 @@ const CONDITIONS = [
 ];
 
 export default function CreateListing() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState('');
@@ -39,6 +39,30 @@ export default function CreateListing() {
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg, setResendMsg] = useState(null);
+
+  useEffect(() => {
+    if (refreshUser) {
+      refreshUser();
+    }
+  }, []);
+
+  const isVerified = Boolean(user?.emailVerified || user?.email_verified);
+
+  const handleResend = async () => {
+    setResendLoading(true);
+    setResendMsg(null);
+    try {
+      const res = await api.post('/api/auth/resend-verification');
+      setResendMsg(res.message || 'Verification email sent! Check your inbox.');
+    } catch (err) {
+      setResendMsg(err.message || 'Failed to resend verification link.');
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   if (!user) {
     return (
@@ -124,12 +148,43 @@ export default function CreateListing() {
           )}
         </div>
 
-        {!user?.emailVerified && (
-          <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-800 text-amber-300 text-xs flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
-            <span>
-              Your college email is not verified yet. Please check your inbox to verify before creating listings.
-            </span>
+        {!isVerified && (
+          <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-800 text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 shrink-0 text-amber-400" />
+              <div>
+                <p className="font-semibold text-white">College Email Verification Required</p>
+                <p className="text-amber-200/90 text-[11px] mt-0.5">
+                  Verify your account (<span className="text-white font-medium">{user.email}</span>) to publish listings and accept bids.
+                </p>
+                {resendMsg && (
+                  <p className="text-emerald-400 text-[11px] font-medium mt-1 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    {resendMsg}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resendLoading}
+                className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-semibold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                {resendLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                Resend Email
+              </button>
+              <button
+                type="button"
+                onClick={() => refreshUser?.()}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Check Status
+              </button>
+            </div>
           </div>
         )}
 
@@ -290,11 +345,11 @@ export default function CreateListing() {
 
           <button
             type="submit"
-            disabled={loading || !user?.emailVerified}
+            disabled={loading || !isVerified}
             className="w-full py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlusCircle className="w-5 h-5" />
-            {!user?.emailVerified ? 'Verification Required to Publish' : loading ? 'Creating Listing...' : 'Publish Auction'}
+            {!isVerified ? 'Verification Required to Publish' : loading ? 'Creating Listing...' : 'Publish Auction'}
           </button>
         </form>
       </div>

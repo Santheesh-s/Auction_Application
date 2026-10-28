@@ -140,7 +140,9 @@ export default function Browse() {
           {user && (user.collegeDomain || user.college_domain) && (
             <div className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shadow-sm">
               <GraduationCap className="w-4 h-4 text-indigo-400" />
-              <span>Visible to students of <strong>{user.collegeDomain || user.college_domain}</strong> only</span>
+              <span>
+                Visible to students of <strong>{user.collegeName || user.college_name ? `${user.collegeName || user.college_name} (${user.collegeDomain || user.college_domain})` : (user.collegeDomain || user.college_domain)}</strong> only
+              </span>
             </div>
           )}
         </div>

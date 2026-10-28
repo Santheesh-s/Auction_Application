@@ -52,12 +52,28 @@ export function AuthProvider({ children }) {
     return res.user;
   };
 
-  const register = async (name, email, password) => {
-    const res = await api.post('/api/auth/register', { name, email, password });
+  const register = async (name, email, password, collegeName) => {
+    const res = await api.post('/api/auth/register', {
+      name,
+      email,
+      password,
+      college_name: collegeName || undefined,
+    });
     setUser(res.user);
     const socket = getSocket();
     socket.connect();
     return res.user;
+  };
+
+  const refreshUser = async () => {
+    try {
+      const data = await api.get('/api/auth/me');
+      setUser(data.user);
+      return data.user;
+    } catch {
+      setUser(null);
+      return null;
+    }
   };
 
   const logout = async () => {
@@ -93,6 +109,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         register,
+        refreshUser,
         logout,
         browserNotifEnabled,
         requestNotificationPermission,

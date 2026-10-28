@@ -12,6 +12,7 @@ const router = Router();
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(50),
+  college_name: z.string().max(100).optional().or(z.literal('')),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
@@ -31,7 +32,7 @@ const COOKIE_OPTIONS = {
 // POST /api/auth/register
 router.post('/register', validate({ body: registerSchema }), async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, college_name, email, password } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
     const collegeCheck = validateCollegeEmail(normalizedEmail);
@@ -47,10 +48,10 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
 
     const passwordHash = await bcrypt.hash(password, 10);
     const insertRes = await db.query(
-      `INSERT INTO users (name, email, password_hash, college_domain, email_verified)
-       VALUES ($1, $2, $3, $4, false)
-       RETURNING id, name, email, college_domain, email_verified`,
-      [name.trim(), normalizedEmail, passwordHash, collegeDomain]
+      `INSERT INTO users (name, email, password_hash, college_domain, college_name, email_verified)
+       VALUES ($1, $2, $3, $4, $5, false)
+       RETURNING id, name, email, college_domain, college_name, email_verified`,
+      [name.trim(), normalizedEmail, passwordHash, collegeDomain, college_name?.trim() || null]
     );
 
     const user = insertRes.rows[0];
@@ -72,6 +73,8 @@ router.post('/register', validate({ body: registerSchema }), async (req, res, ne
         id: user.id,
         name: user.name,
         email: user.email,
+        collegeName: user.college_name,
+        college_name: user.college_name,
         collegeDomain: user.college_domain,
         college_domain: user.college_domain,
         emailVerified: false,
@@ -92,7 +95,7 @@ router.post('/login', validate({ body: loginSchema }), async (req, res, next) =>
     const normalizedEmail = email.trim().toLowerCase();
 
     const userRes = await db.query(
-      'SELECT id, name, email, password_hash, college_domain, email_verified FROM users WHERE email = $1',
+      'SELECT id, name, email, password_hash, college_domain, college_name, email_verified FROM users WHERE email = $1',
       [normalizedEmail]
     );
 
@@ -110,6 +113,8 @@ router.post('/login', validate({ body: loginSchema }), async (req, res, next) =>
       id: user.id,
       name: user.name,
       email: user.email,
+      collegeName: user.college_name,
+      college_name: user.college_name,
       collegeDomain: user.college_domain,
       college_domain: user.college_domain,
       emailVerified: Boolean(user.email_verified),
@@ -136,6 +141,31 @@ router.post('/verify', async (req, res, next) => {
     const result = await verifyEmailToken(token);
     if (!result.success) {
       throw new AppError(result.error || 'Verification failed', 400, 'VERIFICATION_FAILED');
+    }
+
+    const userRes = await db.query(
+      'SELECT id, name, email, college_domain, college_name, email_verified FROM users WHERE id = $1',
+      [result.userId]
+    );
+
+    if (userRes.rows.length > 0) {
+      const refreshedUser = userRes.rows[0];
+      const newToken = signToken(refreshedUser);
+      res.cookie('token', newToken, COOKIE_OPTIONS);
+      return res.json({
+        message: 'Email verified successfully! You now have full access to campus auctions.',
+        user: {
+          id: refreshedUser.id,
+          name: refreshedUser.name,
+          email: refreshedUser.email,
+          collegeName: refreshedUser.college_name,
+          college_name: refreshedUser.college_name,
+          collegeDomain: refreshedUser.college_domain,
+          college_domain: refreshedUser.college_domain,
+          emailVerified: true,
+          email_verified: true,
+        },
+      });
     }
 
     return res.json({ message: 'Email verified successfully! You now have full access to campus auctions.' });

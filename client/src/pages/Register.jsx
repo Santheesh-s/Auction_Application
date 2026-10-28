@@ -9,6 +9,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
+  const [collegeName, setCollegeName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register(name, email, password);
+      await register(name, email, password, collegeName);
       setRegisteredEmail(email);
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -121,6 +122,25 @@ export default function Register() {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              College / University Name
+            </label>
+            <div className="relative">
+              <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="e.g. Kongu Engineering College"
+                value={collegeName}
+                onChange={(e) => setCollegeName(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <span className="text-[11px] text-slate-500 mt-1 block">
+              Used for your campus profile and badge
+            </span>
           </div>
 
           <div>

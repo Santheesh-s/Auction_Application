@@ -63,6 +63,15 @@ export default function VerificationBanner() {
             )}
             Resend Email
           </button>
+
+          <button
+            onClick={() => refreshUser?.()}
+            className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 font-medium text-[11px] flex items-center gap-1 transition-colors"
+            title="Check verification status"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Refresh
+          </button>
         </div>
       </div>
     </div>

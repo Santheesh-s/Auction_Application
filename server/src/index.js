@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -5,7 +6,6 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import fs from 'fs';
-import dotenv from 'dotenv';
 
 import { runMigrations } from './db/migrate.js';
 import { initSocketIO } from './realtime/socket.js';

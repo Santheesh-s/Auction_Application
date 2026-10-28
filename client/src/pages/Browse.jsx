@@ -94,11 +94,13 @@ export default function Browse() {
       fetchListings();
     };
 
+    socket.on('browse:listing_created', handleUpdate);
     socket.on('browse:listing_updated', handleUpdate);
     socket.on('browse:listing_extended', handleUpdate);
     socket.on('browse:listing_closed', handleUpdate);
 
     return () => {
+      socket.off('browse:listing_created', handleUpdate);
       socket.off('browse:listing_updated', handleUpdate);
       socket.off('browse:listing_extended', handleUpdate);
       socket.off('browse:listing_closed', handleUpdate);

@@ -342,6 +342,16 @@ router.post('/', requireAuth, requireVerified, upload.array('images', 5), async 
 
     await client.query('COMMIT');
 
+    realtime.emitListingCreated(req.user.college_domain, {
+      id: listingId,
+      title: title.trim(),
+      category: category.trim(),
+      start_price: startPriceInt,
+      current_price: null,
+      closes_at: closesAtDate.toISOString(),
+      college_domain: req.user.college_domain,
+    });
+
     checkMatchesForNewListing({
       id: listingId,
       seller_id: req.user.id,

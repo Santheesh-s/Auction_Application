@@ -14,18 +14,28 @@ const EDU_DOMAIN_REGEX = /\.(edu|ac\.[a-z]{2,}|edu\.[a-z]{2,})$/i;
  * @returns {string|null} The registrable domain, or null if invalid
  */
 export function getCollegeDomain(email) {
-  if (!email || typeof email !== 'string') return null;
+  if (!email || typeof email !== 'string') {
+    throw new Error('Invalid email format');
+  }
 
   const trimmed = email.trim().toLowerCase();
   const atIndex = trimmed.lastIndexOf('@');
   if (atIndex === -1 || atIndex === 0 || atIndex === trimmed.length - 1) {
-    return null;
+    throw new Error('Invalid email format');
   }
 
   const hostPart = trimmed.slice(atIndex + 1);
   const domain = getDomain(hostPart);
 
-  return domain || null;
+  if (!domain) {
+    throw new Error('Invalid email format');
+  }
+
+  if (isPersonalDomain(domain)) {
+    throw new Error(`Personal email providers (@${domain}) are not permitted`);
+  }
+
+  return domain;
 }
 
 /**
@@ -54,21 +64,14 @@ export function isEducationalDomain(domain) {
  * @returns {{ valid: boolean, collegeDomain: string|null, error: string|null }}
  */
 export function validateCollegeEmail(email) {
-  const domain = getCollegeDomain(email);
-
-  if (!domain) {
+  let domain;
+  try {
+    domain = getCollegeDomain(email);
+  } catch (err) {
     return {
       valid: false,
       collegeDomain: null,
-      error: 'Please enter a valid institution or college email address',
-    };
-  }
-
-  if (isPersonalDomain(domain)) {
-    return {
-      valid: false,
-      collegeDomain: domain,
-      error: `Personal email addresses (@${domain}) are not permitted. Please use your official college or university email address.`,
+      error: err.message,
     };
   }
 

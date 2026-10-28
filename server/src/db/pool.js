@@ -48,7 +48,7 @@ class PgPoolAdapter {
 
 class PGliteAdapter {
   constructor(dataDir) {
-    this.dataDir = dataDir || path.resolve(__dirname, '../../data/pgdata');
+    this.dataDir = dataDir || process.env.PG_DATA_DIR || path.resolve(__dirname, '../../data/pgdata');
     this.pglite = null;
     this.initPromise = null;
     this.transactionLock = Promise.resolve();
@@ -141,11 +141,19 @@ export function getDb() {
   return dbInstance;
 }
 
+export async function closeDb() {
+  if (dbInstance) {
+    await dbInstance.close();
+    dbInstance = null;
+  }
+}
+
 export const db = {
   query: (text, params) => getDb().query(text, params),
   exec: (sql) => getDb().exec(sql),
   connect: () => getDb().connect(),
   isEmbedded: () => getDb().isEmbedded(),
+  close: closeDb,
 };
 
 export default db;

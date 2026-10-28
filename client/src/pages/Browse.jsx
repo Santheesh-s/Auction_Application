@@ -232,14 +232,29 @@ export default function Browse() {
         </div>
       ) : listings.length === 0 ? (
         <div className="py-20 text-center glass-panel rounded-3xl p-8 space-y-3">
-          <p className="text-base font-semibold text-slate-300">No auctions match your current filters</p>
-          <p className="text-xs text-slate-500">Try adjusting your keywords, price range, or category filter.</p>
-          <button
-            onClick={handleResetFilters}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white mt-2"
-          >
-            Clear All Filters
-          </button>
+          {query || category !== 'all' || condition !== 'all' || minPrice || maxPrice || closingWithin ? (
+            <>
+              <p className="text-base font-semibold text-slate-300">No auctions match your current filters</p>
+              <p className="text-xs text-slate-500">Try adjusting your keywords, price range, or category filter.</p>
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white mt-2"
+              >
+                Clear All Filters
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-base font-semibold text-slate-300">No listings from your college yet</p>
+              <p className="text-xs text-slate-500">Be the first to list an item for students in your college campus.</p>
+              <Link
+                to="/create"
+                className="inline-block px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-lg shadow-indigo-600/20 mt-2"
+              >
+                Create First Listing
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

@@ -19,27 +19,14 @@ npm --prefix server install
 npm --prefix client install
 ```
 
-### 3. Seed Sample Data
-Populates realistic campus users, cycles, calculators, books, initial bids, and demo auctions:
-```bash
-npm run seed
-```
-
-**Sample Login Credentials (seeded):**
-| Email | Password | Role / Items |
-|---|---|---|
-| `aarav@campus.edu` | `password123` | Seller of Mountain Cycle |
-| `priya@campus.edu` | `password123` | Seller of Casio Calculator, active bidder |
-| `rohan@campus.edu` | `password123` | Leading bidder on cycle |
-
-### 4. Run Development Servers
+### 3. Run Development Servers
 Starts both Express backend (Port 5000) and Vite React frontend (Port 5173):
 ```bash
 npm run dev
 ```
-Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+Open **[http://localhost:5173](http://localhost:5173)** in your browser. Register an account using your institution email.
 
-### 5. Run Automated Tests
+### 4. Run Automated Tests
 Executes the comprehensive concurrency and business logic test suite:
 ```bash
 npm test

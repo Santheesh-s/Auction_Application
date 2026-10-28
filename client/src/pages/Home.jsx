@@ -180,8 +180,15 @@ export default function Home() {
             ))}
           </div>
         ) : featuredListings.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 glass-card rounded-2xl">
-            No active listings found. Be the first to list!
+          <div className="py-12 px-6 text-center glass-card rounded-3xl space-y-3">
+            <p className="text-sm font-semibold text-slate-300">No listings from your college yet</p>
+            <p className="text-xs text-slate-500">Be the first to list an item for students in your college campus.</p>
+            <Link
+              to="/create"
+              className="inline-block px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30"
+            >
+              List an Item
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

@@ -60,7 +60,7 @@ export default function Register() {
               <input
                 type="text"
                 required
-                placeholder="Aarav Sharma"
+                placeholder="e.g. Alex Johnson"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -77,7 +77,7 @@ export default function Register() {
               <input
                 type="email"
                 required
-                placeholder="student@campus.edu"
+                placeholder="e.g. student@college.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"

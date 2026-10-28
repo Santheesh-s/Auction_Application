@@ -30,10 +30,6 @@ export default function Login() {
     }
   };
 
-  const handleQuickLogin = (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-  };
 
   return (
     <div className="max-w-md mx-auto py-12">
@@ -100,39 +96,6 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        {/* 1-Click Demo Accounts for testing */}
-        <div className="pt-4 border-t border-slate-800 space-y-2">
-          <span className="text-[11px] font-semibold text-slate-400 block text-center">
-            ⚡ 1-Click Demo Accounts (Seed Data)
-          </span>
-          <div className="grid grid-cols-3 gap-2 text-[11px]">
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('aarav@campus.edu')}
-              className="py-1.5 px-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium truncate"
-              title="Aarav (Seller)"
-            >
-              Aarav (Seller)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('priya@campus.edu')}
-              className="py-1.5 px-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium truncate"
-              title="Priya (Buyer)"
-            >
-              Priya (Buyer)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('rohan@campus.edu')}
-              className="py-1.5 px-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium truncate"
-              title="Rohan (Leader)"
-            >
-              Rohan (Leader)
-            </button>
-          </div>
-        </div>
 
         <p className="text-center text-xs text-slate-400">
           Don't have an account yet?{' '}

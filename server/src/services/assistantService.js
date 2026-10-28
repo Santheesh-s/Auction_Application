@@ -180,7 +180,203 @@ export async function cancelProposal(proposalId, userId) {
   return { success: true };
 }
 
+/**
+ * Calls Google AI Studio Gemini API with function calling capabilities.
+ */
+async function callGeminiAssistant(user, messages) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const collegeDomain = user.college_domain || user.collegeDomain;
+  const collegeName = user.college_name || collegeDomain || 'Campus';
+  const isVerified = Boolean(user.email_verified || user.emailVerified);
+
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const tools = [
+    {
+      functionDeclarations: [
+        {
+          name: 'search_listings',
+          description: 'Search for active peer-to-peer auctions in the student campus.',
+          parameters: {
+            type: 'OBJECT',
+            properties: {
+              query: { type: 'STRING', description: 'Keywords like cycle, calculator, textbook, notes' },
+              category: { type: 'STRING', description: 'Item category (cycle, calculator, books, electronics, other)' },
+              max_price: { type: 'NUMBER', description: 'Maximum price ceiling in rupees (INR)' }
+            }
+          }
+        },
+        {
+          name: 'get_listing',
+          description: 'Get details, condition, current price, and bid history of a listing by its ID.',
+          parameters: {
+            type: 'OBJECT',
+            properties: {
+              listing_id: { type: 'INTEGER', description: 'The numeric ID of the listing' }
+            },
+            required: ['listing_id']
+          }
+        },
+        {
+          name: 'propose_bid',
+          description: 'Prepare an automatic bid proposal card for the student to confirm. NEVER places a bid directly without student approval.',
+          parameters: {
+            type: 'OBJECT',
+            properties: {
+              listing_id: { type: 'INTEGER', description: 'The numeric ID of the listing' },
+              max_amount: { type: 'NUMBER', description: 'Maximum bid ceiling in rupees (INR)' }
+            },
+            required: ['listing_id', 'max_amount']
+          }
+        }
+      ]
+    }
+  ];
+
+  const systemInstruction = {
+    parts: [{
+      text: `You are the Campus Auction AI Assistant for students at ${collegeName} (${collegeDomain}).
+Help students discover peer-to-peer auctions, check item details, and set up safe automated bid proposals.
+
+SAFETY GUARDRAILS & STRICT RULES:
+1. NEVER place bids directly on behalf of a student. When a user asks to bid or auto-bid, you MUST call 'propose_bid'. This creates an interactive proposal card that the user must manually click to confirm.
+2. Participation is strictly isolated to students of ${collegeDomain}. Never suggest or attempt to access listings from other colleges.
+3. Privacy: NEVER reveal student emails or private contact info. Only refer to students by their public display name.
+4. Always be friendly, concise, and format currency in Indian Rupees (₹).`
+    }]
+  };
+
+  // Convert chat history (last 10 messages max)
+  const conversation = messages.slice(-10).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content || '' }]
+  }));
+
+  const payload = {
+    systemInstruction,
+    contents: conversation,
+    tools
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.warn(`Gemini API returned status ${res.status}:`, errText);
+    return null;
+  }
+
+  const data = await res.json();
+  const candidate = data.candidates?.[0];
+  if (!candidate) return null;
+
+  const modelParts = candidate.content?.parts || [];
+  const functionCallPart = modelParts.find(p => p.functionCall);
+
+  let capturedProposal = null;
+  let capturedListings = null;
+
+  if (functionCallPart && functionCallPart.functionCall) {
+    const fn = functionCallPart.functionCall;
+    const fnName = fn.name;
+    const fnArgs = fn.args || {};
+    let toolResult = {};
+
+    if (fnName === 'search_listings') {
+      const results = await toolSearchListings(collegeDomain, fnArgs);
+      capturedListings = results;
+      toolResult = { listings: results };
+    } else if (fnName === 'get_listing') {
+      const result = await toolGetListing(collegeDomain, fnArgs.listing_id);
+      toolResult = { listing: result || 'Listing not found or belongs to another college' };
+    } else if (fnName === 'propose_bid') {
+      if (!isVerified) {
+        toolResult = { error: 'Your college email is not verified yet. Verification is required to create bid proposals.' };
+      } else {
+        try {
+          const proposal = await toolProposeBid(user.id, collegeDomain, fnArgs.listing_id, fnArgs.max_amount);
+          capturedProposal = proposal;
+          toolResult = {
+            success: true,
+            proposal_id: proposal.proposal_id,
+            listing_title: proposal.listing_title,
+            max_amount: proposal.max_amount,
+            message: 'Bid proposal prepared. User must click confirm on the card to execute.'
+          };
+        } catch (err) {
+          toolResult = { error: err.message || 'Could not prepare bid proposal' };
+        }
+      }
+    }
+
+    // Feed tool output back to Gemini
+    conversation.push(candidate.content);
+    conversation.push({
+      role: 'user',
+      parts: [{
+        functionResponse: {
+          name: fnName,
+          response: toolResult
+        }
+      }]
+    });
+
+    const secondRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction,
+        contents: conversation,
+        tools
+      })
+    });
+
+    if (secondRes.ok) {
+      const secondData = await secondRes.json();
+      const secondCandidate = secondData.candidates?.[0];
+      const replyText = secondCandidate?.content?.parts?.map(p => p.text).filter(Boolean).join('\n') || '';
+      return {
+        reply: replyText || 'Here are the details for your request.',
+        proposal: capturedProposal ? {
+          id: capturedProposal.proposal_id,
+          listing_id: capturedProposal.listing_id,
+          listing_title: capturedProposal.listing_title,
+          max_amount: capturedProposal.max_amount,
+          status: capturedProposal.status,
+        } : undefined,
+        listings: capturedListings || undefined
+      };
+    }
+  }
+
+  const finalReply = modelParts.map(p => p.text).filter(Boolean).join('\n');
+  if (finalReply) {
+    return { reply: finalReply };
+  }
+
+  return null;
+}
+
 export async function handleAssistantChat(user, messages) {
+  // If GEMINI_API_KEY is configured, prioritize Gemini AI
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const geminiRes = await callGeminiAssistant(user, messages);
+      if (geminiRes && geminiRes.reply) {
+        return geminiRes;
+      }
+    } catch (err) {
+      console.error('Gemini Assistant call failed, falling back to local matcher:', err);
+    }
+  }
+
   const userId = user.id;
   const collegeDomain = user.college_domain || user.collegeDomain;
   const isVerified = Boolean(user.email_verified || user.emailVerified);

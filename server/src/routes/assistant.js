@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { AppError } from '../middleware/errors.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireVerified } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   handleAssistantChat,
@@ -24,7 +24,7 @@ const chatSchema = z.object({
 router.post('/chat', requireAuth, validate({ body: chatSchema }), async (req, res, next) => {
   try {
     const { messages } = req.body;
-    const response = await handleAssistantChat(req.user.id, messages);
+    const response = await handleAssistantChat(req.user, messages);
     return res.json(response);
   } catch (err) {
     next(err);
@@ -32,7 +32,7 @@ router.post('/chat', requireAuth, validate({ body: chatSchema }), async (req, re
 });
 
 // POST /api/assistant/proposals/:id/confirm
-router.post('/proposals/:id/confirm', requireAuth, async (req, res, next) => {
+router.post('/proposals/:id/confirm', requireAuth, requireVerified, async (req, res, next) => {
   try {
     const proposalId = parseInt(req.params.id, 10);
     if (isNaN(proposalId)) throw new AppError('Invalid proposal ID', 400, 'INVALID_ID');

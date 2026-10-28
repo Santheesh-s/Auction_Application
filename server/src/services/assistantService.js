@@ -2,15 +2,17 @@ import { db } from '../db/pool.js';
 import { AppError } from '../middleware/errors.js';
 import { setAutoBid } from './biddingService.js';
 
-// TOOL 1: search_listings (Strictly public info)
-export async function toolSearchListings(params = {}) {
+// TOOL 1: search_listings (Strictly public info, scoped to user college)
+export async function toolSearchListings(collegeDomain, params = {}) {
+  if (!collegeDomain) return [];
+
   let sql = `
     SELECT id, title, category, condition, start_price, current_price, closes_at, status
     FROM listings
-    WHERE status = 'open' AND closes_at > now()
+    WHERE status = 'open' AND closes_at > now() AND LOWER(college_domain) = LOWER($1)
   `;
-  const values = [];
-  let paramIdx = 1;
+  const values = [collegeDomain];
+  let paramIdx = 2;
 
   if (params.query) {
     sql += ` AND (title ILIKE $${paramIdx} OR description ILIKE $${paramIdx})`;
@@ -43,11 +45,11 @@ export async function toolSearchListings(params = {}) {
   }));
 }
 
-// TOOL 2: get_listing (Public details & bids with display name ONLY)
-export async function toolGetListing(listingId) {
+// TOOL 2: get_listing (Public details & bids with display name ONLY, scoped to user college)
+export async function toolGetListing(collegeDomain, listingId) {
   const listingRes = await db.query(
     `SELECT l.id, l.title, l.description, l.category, l.condition, l.start_price,
-            l.min_increment, l.current_price, l.closes_at, l.status,
+            l.min_increment, l.current_price, l.closes_at, l.status, l.college_domain,
             u.name as seller_name
      FROM listings l
      JOIN users u ON l.seller_id = u.id
@@ -57,6 +59,10 @@ export async function toolGetListing(listingId) {
 
   if (listingRes.rows.length === 0) return null;
   const listing = listingRes.rows[0];
+
+  if (!collegeDomain || listing.college_domain?.toLowerCase().trim() !== collegeDomain.toLowerCase().trim()) {
+    return null; // Hide cross-college listings
+  }
 
   const bidsRes = await db.query(
     `SELECT b.id, b.amount, b.is_auto, b.created_at, u.name as bidder_name
@@ -84,9 +90,9 @@ export async function toolGetListing(listingId) {
 }
 
 // TOOL 3: propose_bid (Does NOT bid; creates proposal card for user confirmation)
-export async function toolProposeBid(userId, listingId, maxAmount) {
+export async function toolProposeBid(userId, collegeDomain, listingId, maxAmount) {
   const listingRes = await db.query(
-    `SELECT id, title, status, closes_at FROM listings WHERE id = $1`,
+    `SELECT id, title, status, closes_at, college_domain FROM listings WHERE id = $1`,
     [listingId]
   );
 
@@ -95,6 +101,11 @@ export async function toolProposeBid(userId, listingId, maxAmount) {
   }
 
   const listing = listingRes.rows[0];
+
+  if (!collegeDomain || listing.college_domain?.toLowerCase().trim() !== collegeDomain.toLowerCase().trim()) {
+    throw new AppError('Listing not found', 404, 'NOT_FOUND');
+  }
+
   if (listing.status !== 'open') {
     throw new AppError('Listing is no longer open for bidding', 400, 'NOT_OPEN');
   }
@@ -169,7 +180,11 @@ export async function cancelProposal(proposalId, userId) {
   return { success: true };
 }
 
-export async function handleAssistantChat(userId, messages) {
+export async function handleAssistantChat(user, messages) {
+  const userId = user.id;
+  const collegeDomain = user.college_domain || user.collegeDomain;
+  const isVerified = Boolean(user.email_verified || user.emailVerified);
+
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content?.trim() || '';
   const textLower = lastUserMsg.toLowerCase();
 
@@ -185,24 +200,39 @@ export async function handleAssistantChat(userId, messages) {
       listingId = parseInt(target, 10);
     } else {
       const queryStr = target || 'cycle';
-      const searchRes = await toolSearchListings({ query: queryStr });
+      const searchRes = await toolSearchListings(collegeDomain, { query: queryStr });
       if (searchRes.length > 0) {
         listingId = searchRes[0].id;
       }
     }
 
     if (listingId && amount > 0) {
-      const proposal = await toolProposeBid(userId, listingId, amount);
-      return {
-        reply: `I have prepared a bid proposal for **${proposal.listing_title}** up to **₹${amount}**. Because safety guardrails require your explicit approval, please confirm below to activate this automatic bid:`,
-        proposal: {
-          id: proposal.proposal_id,
-          listing_id: proposal.listing_id,
-          listing_title: proposal.listing_title,
-          max_amount: proposal.max_amount,
-          status: proposal.status,
-        },
-      };
+      if (!isVerified) {
+        return {
+          reply: `I found listing #${listingId}, but your college email is not verified yet. Please verify your email before creating automated bid proposals.`,
+        };
+      }
+
+      try {
+        const proposal = await toolProposeBid(userId, collegeDomain, listingId, amount);
+        return {
+          reply: `I have prepared a bid proposal for **${proposal.listing_title}** up to **₹${amount}**. Because safety guardrails require your explicit approval, please confirm below to activate this automatic bid:`,
+          proposal: {
+            id: proposal.proposal_id,
+            listing_id: proposal.listing_id,
+            listing_title: proposal.listing_title,
+            max_amount: proposal.max_amount,
+            status: proposal.status,
+          },
+        };
+      } catch (err) {
+        if (err.statusCode === 404) {
+          return {
+            reply: `I couldn't find an active listing with ID #${listingId} in your college (${collegeDomain}).`,
+          };
+        }
+        throw err;
+      }
     }
   }
 
@@ -214,20 +244,20 @@ export async function handleAssistantChat(userId, messages) {
     .replace(/(?:find|show|search|look for|get|under|below|less than|max|₹|\d+|me|a|an|the|please)/gi, '')
     .trim();
 
-  const results = await toolSearchListings({
+  const results = await toolSearchListings(collegeDomain, {
     query: cleanQuery || undefined,
     max_price: maxPrice,
   });
 
   if (results.length > 0) {
     return {
-      reply: `I found ${results.length} active auction(s) matching your request:${results.map(r => `\n- **#${r.id} ${r.title}** (${r.condition}) — Current: ₹${r.price}`).join('')}\n\nWould you like me to prepare an automatic bid proposal for any of these? Say "Bid up to ₹X on listing #ID".`,
+      reply: `I found ${results.length} active auction(s) in ${collegeDomain} matching your request:${results.map(r => `\n- **#${r.id} ${r.title}** (${r.condition}) — Current: ₹${r.price}`).join('')}\n\nWould you like me to prepare an automatic bid proposal for any of these? Say "Bid up to ₹X on listing #ID".`,
       listings: results,
     };
   }
 
   return {
-    reply: `I'm your Campus Auction AI Assistant! I can help you find textbook, cycle, and calculator auctions or set up safe auto-bids. Try asking:
+    reply: `I'm your Campus Auction AI Assistant for ${collegeDomain || 'your campus'}! I can help you find textbook, cycle, and calculator auctions or set up safe auto-bids. Try asking:
 - "Find me a cycle under ₹2000"
 - "Show scientific calculators"
 - "Bid up to ₹500 on listing #1"`,

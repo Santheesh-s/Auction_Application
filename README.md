@@ -100,7 +100,7 @@ approved ──pickup failed────────────▶ failed_picku
 
 ## 🧪 Test Suite Checklist
 
-Run `npm test` to execute all 10 automated test suites:
+Run `npm test` to execute all 13 automated test suites:
 - [x] Bid below minimum rejected; first bid at start price accepted
 - [x] Subsequent bids must meet `current_price + min_increment`
 - [x] Seller cannot bid on own item; leader cannot outbid themselves manually
@@ -110,7 +110,10 @@ Run `npm test` to execute all 10 automated test suites:
 - [x] Auto-bidding proxy never exceeds user max and settles competing maxes
 - [x] Closing: with bids -> `pending_approval`; without bids -> `unsold`
 - [x] Sale state machine: approve -> handover -> completed
-- [x] AI Assistant: privacy (no emails) and proposal-before-bid enforcement
+- [x] Assistant guardrails: privacy (no emails) and proposal-before-bid enforcement
+- [x] Sale state machine: reject by seller and pickup_failed outcomes
+- [x] Wanted items: match notifications triggered for new listings (including offline)
+- [x] Questions before bidding: buyer asks, seller answers, spam hidden
 
 ---
 

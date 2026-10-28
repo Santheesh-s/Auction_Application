@@ -16,6 +16,7 @@ import {
   toolProposeBid,
   confirmProposal,
 } from '../src/services/assistantService.js';
+import { checkMatchesForNewListing } from '../src/services/wantedMatcher.js';
 
 let testUser1, testUser2, testUser3, testUser4;
 
@@ -59,7 +60,7 @@ async function createTestListing(overrides = {}) {
       seller_id, title, category, description, condition,
       start_price, min_increment, closes_at, status
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open')
-    RETURNING id, start_price, min_increment, current_price, closes_at`,
+    RETURNING *`,
     [
       overrides.seller_id || testUser1.id,
       overrides.title || 'Test Item',
@@ -289,6 +290,89 @@ async function runAllTests() {
 
     checkList = (await db.query('SELECT current_price, leading_bid_id FROM listings WHERE id = $1', [listing.id])).rows[0];
     assert.strictEqual(checkList.current_price, 500); // Now bid is activated!
+  });
+
+  // 11. Sale State Machine: reject and pickup_failed paths
+  await test('Sale state machine: reject by seller and pickup_failed outcomes', async () => {
+    // Rejection path
+    const listingRej = await createTestListing({ seller_id: testUser1.id, start_price: 300 });
+    await placeBid(listingRej.id, testUser2.id, 300);
+    await db.query(`UPDATE listings SET closes_at = now() - interval '5 seconds' WHERE id = $1`, [listingRej.id]);
+    await closeExpiredAuctions();
+
+    const rejRes = await rejectSale(listingRej.id, testUser1.id, 'Price too low');
+    assert.strictEqual(rejRes.status, 'rejected');
+    const rejRow = (await db.query('SELECT status FROM listings WHERE id = $1', [listingRej.id])).rows[0];
+    assert.strictEqual(rejRow.status, 'rejected');
+
+    // Pickup failed path
+    const listingFail = await createTestListing({ seller_id: testUser1.id, start_price: 400 });
+    await placeBid(listingFail.id, testUser2.id, 400);
+    await db.query(`UPDATE listings SET closes_at = now() - interval '5 seconds' WHERE id = $1`, [listingFail.id]);
+    await closeExpiredAuctions();
+    await approveSale(listingFail.id, testUser1.id, 'Approved');
+    const failRes = await reportPickupFailed(listingFail.id, testUser1.id, 'Buyer did not show up');
+    assert.strictEqual(failRes.status, 'failed_pickup');
+    const failRow = (await db.query('SELECT status FROM listings WHERE id = $1', [listingFail.id])).rows[0];
+    assert.strictEqual(failRow.status, 'failed_pickup');
+  });
+
+  // 12. Wanted item alerts match listings created while user was offline
+  await test('Wanted items: match notifications triggered for new listings', async () => {
+    // User 4 creates a wanted search for "scientific calculator" max 500
+    await db.query(
+      `INSERT INTO wanted_items (user_id, keywords, category, max_price, active)
+       VALUES ($1, 'scientific calculator', 'calculator', 500, true)`,
+      [testUser4.id]
+    );
+
+    // User 1 lists a matching calculator
+    const calcListing = await createTestListing({
+      seller_id: testUser1.id,
+      title: 'Casio fx-991ES Plus Scientific Calculator',
+      category: 'calculator',
+      description: 'Used for two semesters in engineering',
+      start_price: 350,
+    });
+
+    await checkMatchesForNewListing(calcListing);
+
+    // Verify User 4 received a wanted_match notification
+    const notifs = await db.query(
+      `SELECT type, message FROM notifications WHERE user_id = $1 AND listing_id = $2`,
+      [testUser4.id, calcListing.id]
+    );
+    assert.ok(notifs.rows.length > 0);
+    assert.strictEqual(notifs.rows[0].type, 'wanted_match');
+  });
+
+  // 13. Q&A: Asking questions, rate limits, seller answer, and hiding spam
+  await test('Questions before bidding: buyer asks, seller answers, spam hidden', async () => {
+    const listing = await createTestListing({ seller_id: testUser1.id, start_price: 200 });
+
+    // Buyer 2 asks question
+    const qRes = await db.query(
+      `INSERT INTO questions (listing_id, asker_id, body)
+       VALUES ($1, $2, 'Does this include the charger cable?')
+       RETURNING id`,
+      [listing.id, testUser2.id]
+    );
+    const qId = qRes.rows[0].id;
+
+    // Seller answers
+    await db.query(
+      `UPDATE questions SET answer = 'Yes, original cable included', answered_at = now() WHERE id = $1`,
+      [qId]
+    );
+
+    let qRow = (await db.query('SELECT answer, hidden FROM questions WHERE id = $1', [qId])).rows[0];
+    assert.strictEqual(qRow.answer, 'Yes, original cable included');
+    assert.strictEqual(qRow.hidden, false);
+
+    // Seller hides spam
+    await db.query('UPDATE questions SET hidden = true WHERE id = $1', [qId]);
+    qRow = (await db.query('SELECT hidden FROM questions WHERE id = $1', [qId])).rows[0];
+    assert.strictEqual(qRow.hidden, true);
   });
 
   console.log(`\n========================================`);

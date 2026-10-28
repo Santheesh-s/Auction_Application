@@ -6,19 +6,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 console.log('\x1b[36m%s\x1b[0m', '🚀 Starting Campus Auction monorepo (Server + Client)...');
 
-const isWin = process.platform === 'win32';
-const npmCmd = isWin ? 'npm.cmd' : 'npm';
-
-const serverProc = spawn(npmCmd, ['run', 'dev'], {
+const serverProc = spawn(process.execPath, ['src/index.js'], {
   cwd: path.join(__dirname, 'server'),
   stdio: 'inherit',
-  shell: true,
 });
 
-const clientProc = spawn(npmCmd, ['run', 'dev'], {
+const viteBin = path.join(__dirname, 'client', 'node_modules', 'vite', 'bin', 'vite.js');
+const clientProc = spawn(process.execPath, [viteBin], {
   cwd: path.join(__dirname, 'client'),
   stdio: 'inherit',
-  shell: true,
 });
 
 const cleanup = () => {

@@ -69,8 +69,22 @@ class PGliteAdapter {
           if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
         } catch {}
 
-        this.pglite = new PGlite(this.dataDir);
-        await this.pglite.waitReady;
+        try {
+          this.pglite = new PGlite(this.dataDir);
+          await this.pglite.waitReady;
+        } catch (initErr) {
+          console.warn('PGlite data directory was corrupted by unclean shutdown. Auto-recovering clean database...');
+          try {
+            fs.rmSync(this.dataDir, { recursive: true, force: true });
+            fs.mkdirSync(this.dataDir, { recursive: true });
+            this.pglite = new PGlite(this.dataDir);
+            await this.pglite.waitReady;
+            console.log('PGlite auto-recovered successfully.');
+          } catch (recoveryErr) {
+            console.error('PGlite recovery failed:', recoveryErr);
+            throw recoveryErr;
+          }
+        }
       })();
     }
     await this.initPromise;
